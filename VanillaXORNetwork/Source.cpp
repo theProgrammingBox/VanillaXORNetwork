@@ -160,6 +160,8 @@ void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
 
 int main()
 {
+	const bool debug = false;
+	
 	float inputMatrix[GlobalVars::INPUT];
 	float hiddenMatrix[GlobalVars::HIDDEN];
 	float hiddenActivation[GlobalVars::HIDDEN];
@@ -241,7 +243,7 @@ int main()
 			hiddenWeightsGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
 			GlobalVars::ONE);
 
-		if (false)
+		if (debug)
 		{
 			cout << "inputMatrix:\n";
 			PrintMatrix(inputMatrix, GlobalVars::ONE, GlobalVars::INPUT);
@@ -283,8 +285,7 @@ int main()
 		for (uint32_t counter = GlobalVars::OUTPUT; counter--;)
 			outputBias[counter] += outputGradient[counter] * GlobalVars::LEARNING_RATE;
 	}
-
-	// print weights and biases
+	
 	cout << "Hidden Weights:\n";
 	PrintMatrix(hiddenWeights, GlobalVars::INPUT, GlobalVars::HIDDEN);
 	
