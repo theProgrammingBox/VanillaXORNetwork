@@ -98,9 +98,12 @@ namespace GlobalVars
 	constexpr uint32_t INPUT = 2;
 	constexpr uint32_t HIDDEN = 2;
 	constexpr uint32_t OUTPUT = 1;
+	constexpr uint32_t ITERATIONS = 100000;
+	constexpr uint32_t BATCHES = 8;
 	constexpr float ONE = 1.0f;
 	constexpr float ZERO = 0.0f;
 	constexpr float LEARNING_RATE = 0.1f;
+	constexpr float GRADIENT_SCALAR = LEARNING_RATE / BATCHES;
 }
 
 void cpuGenerateUniform(float* matrix, uint32_t size, float min = 0, float max = 1)
@@ -135,16 +138,22 @@ void cpuSgemmStridedBatched(
 	}
 }
 
+void cpuSaxpy(int N, const float* alpha, const float* X, int incX, float* Y, int incY)
+{
+	for (int i = 0; i < N; i++)
+		Y[i * incY] += *alpha * X[i * incX];
+}
+
 void cpuRelu(float* input, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = (input[counter] > 0) * input[counter];
+		output[counter] = ((input[counter] > 0)) * input[counter];
 }
 
 void cpuReluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = (input[counter] > 0) * gradient[counter];
+		output[counter] = ((input[counter] > 0)) * gradient[counter];
 }
 
 void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
@@ -167,10 +176,8 @@ int main()
 	float hiddenActivation[GlobalVars::HIDDEN];
 	float outputMatrix[GlobalVars::OUTPUT];
 	float outputActivation[GlobalVars::OUTPUT];
-	
 	float hiddenWeights[GlobalVars::INPUT * GlobalVars::HIDDEN];
 	float outputWeights[GlobalVars::HIDDEN * GlobalVars::OUTPUT];
-	
 	float hiddenBias[GlobalVars::HIDDEN];
 	float outputBias[GlobalVars::OUTPUT];
 
@@ -178,115 +185,124 @@ int main()
 	float hiddenActivationGradient[GlobalVars::HIDDEN];
 	float outputGradient[GlobalVars::OUTPUT];
 	float outputActivationGradient[GlobalVars::OUTPUT];
-
 	float hiddenWeightsGradient[GlobalVars::INPUT * GlobalVars::HIDDEN];
 	float outputWeightsGradient[GlobalVars::HIDDEN * GlobalVars::OUTPUT];
+	float hiddenBiasGradient[GlobalVars::HIDDEN];
+	float outputBiasGradient[GlobalVars::OUTPUT];
 	
 	cpuGenerateUniform(hiddenWeights, GlobalVars::INPUT * GlobalVars::HIDDEN);
 	cpuGenerateUniform(outputWeights, GlobalVars::HIDDEN * GlobalVars::OUTPUT);
 	memset(hiddenBias, 0, GlobalVars::HIDDEN * sizeof(float));
 	memset(outputBias, 0, GlobalVars::OUTPUT * sizeof(float));
 
-	uint32_t iteration = 1000;
+	uint32_t iteration = GlobalVars::ITERATIONS;
 	while (iteration--)
 	{
-		bool expected = 0;
-		for (uint32_t counter = GlobalVars::INPUT; counter--;)
-		{
-			inputMatrix[counter] = GlobalVars::random.Ruint32() & 1;
-			expected ^= (bool)inputMatrix[counter];
-		}
-		cpuSgemmStridedBatched(false, false,
-			GlobalVars::HIDDEN, GlobalVars::ONE, GlobalVars::INPUT,
-			&GlobalVars::ONE,
-			hiddenWeights, GlobalVars::HIDDEN, GlobalVars::ZERO,
-			inputMatrix, GlobalVars::INPUT, GlobalVars::ZERO,
-			&GlobalVars::ZERO,
-			hiddenMatrix, GlobalVars::HIDDEN, GlobalVars::ZERO,
-			GlobalVars::ONE);
-		cpuRelu(hiddenMatrix, hiddenActivation, GlobalVars::HIDDEN);
-		cpuSgemmStridedBatched(false, false,
-			GlobalVars::OUTPUT, GlobalVars::ONE, GlobalVars::HIDDEN,
-			&GlobalVars::ONE,
-			outputWeights, GlobalVars::OUTPUT, GlobalVars::ZERO,
-			hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZERO,
-			&GlobalVars::ZERO,
-			outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZERO,
-			GlobalVars::ONE);
-		cpuRelu(outputMatrix, outputActivation, GlobalVars::OUTPUT);
-		
-		outputActivationGradient[0] = expected - outputActivation[0];
-		cpuReluDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT);
-		cpuSgemmStridedBatched(true, false,
-			GlobalVars::HIDDEN, GlobalVars::ONE, GlobalVars::OUTPUT,
-			&GlobalVars::ONE,
-			outputWeights, GlobalVars::OUTPUT, GlobalVars::ZERO,
-			outputGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
-			&GlobalVars::ZERO,
-			hiddenActivationGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
-			GlobalVars::ONE);
-		cpuSgemmStridedBatched(false, true,
-			GlobalVars::OUTPUT, GlobalVars::HIDDEN, GlobalVars::ONE,
-			&GlobalVars::ONE,
-			outputGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
-			hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZERO,
-			&GlobalVars::ZERO,
-			outputWeightsGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
-			GlobalVars::ONE);
-		cpuReluDerivative(hiddenMatrix, hiddenActivationGradient, hiddenGradient, GlobalVars::HIDDEN);
-		cpuSgemmStridedBatched(false, true,
-			GlobalVars::HIDDEN, GlobalVars::INPUT, GlobalVars::ONE,
-			&GlobalVars::ONE,
-			hiddenGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
-			inputMatrix, GlobalVars::INPUT, GlobalVars::ZERO,
-			&GlobalVars::ZERO,
-			hiddenWeightsGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
-			GlobalVars::ONE);
+		memset(hiddenWeightsGradient, 0, GlobalVars::INPUT * GlobalVars::HIDDEN * sizeof(float));
+		memset(outputWeightsGradient, 0, GlobalVars::HIDDEN * GlobalVars::OUTPUT * sizeof(float));
+		memset(hiddenBiasGradient, 0, GlobalVars::HIDDEN * sizeof(float));
+		memset(outputBiasGradient, 0, GlobalVars::OUTPUT * sizeof(float));
 
-		if (debug)
+		uint32_t batch = GlobalVars::BATCHES;
+		while (batch--)
 		{
-			cout << "inputMatrix:\n";
-			PrintMatrix(inputMatrix, GlobalVars::ONE, GlobalVars::INPUT);
-			cout << "hiddenMatrix:\n";
-			PrintMatrix(hiddenMatrix, GlobalVars::ONE, GlobalVars::HIDDEN);
-			cout << "hiddenActivation:\n";
-			PrintMatrix(hiddenActivation, GlobalVars::ONE, GlobalVars::HIDDEN);
-			cout << "outputMatrix:\n";
-			PrintMatrix(outputMatrix, GlobalVars::ONE, GlobalVars::OUTPUT);
-			cout << "outputActivation:\n";
-			PrintMatrix(outputActivation, GlobalVars::ONE, GlobalVars::OUTPUT);
-			cout << "outputActivationGradient:\n";
-			PrintMatrix(outputActivationGradient, GlobalVars::ONE, GlobalVars::OUTPUT);
-			cout << "outputGradient:\n";
-			PrintMatrix(outputGradient, GlobalVars::ONE, GlobalVars::OUTPUT);
-			cout << "outputWeightsGradient:\n";
-			PrintMatrix(outputWeightsGradient, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
-			cout << "hiddenActivationGradient:\n";
-			PrintMatrix(hiddenActivationGradient, GlobalVars::ONE, GlobalVars::HIDDEN);
-			cout << "hiddenGradient:\n";
-			PrintMatrix(hiddenGradient, GlobalVars::ONE, GlobalVars::HIDDEN);
-			cout << "hiddenWeightsGradient:\n";
-			PrintMatrix(hiddenWeightsGradient, GlobalVars::INPUT, GlobalVars::HIDDEN);
+			bool expected = 0;
+			for (uint32_t counter = GlobalVars::INPUT; counter--;)
+			{
+				inputMatrix[counter] = GlobalVars::random.Ruint32() & 1;
+				expected ^= (bool)inputMatrix[counter];
+			}
+			cpuSgemmStridedBatched(false, false,
+				GlobalVars::HIDDEN, GlobalVars::ONE, GlobalVars::INPUT,
+				&GlobalVars::ONE,
+				hiddenWeights, GlobalVars::HIDDEN, GlobalVars::ZERO,
+				inputMatrix, GlobalVars::INPUT, GlobalVars::ZERO,
+				&GlobalVars::ZERO,
+				hiddenMatrix, GlobalVars::HIDDEN, GlobalVars::ZERO,
+				GlobalVars::ONE);
+			cpuRelu(hiddenMatrix, hiddenActivation, GlobalVars::HIDDEN);
+			cpuSgemmStridedBatched(false, false,
+				GlobalVars::OUTPUT, GlobalVars::ONE, GlobalVars::HIDDEN,
+				&GlobalVars::ONE,
+				outputWeights, GlobalVars::OUTPUT, GlobalVars::ZERO,
+				hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZERO,
+				&GlobalVars::ZERO,
+				outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZERO,
+				GlobalVars::ONE);
+			cpuRelu(outputMatrix, outputActivation, GlobalVars::OUTPUT);
+
+			outputActivationGradient[0] = expected - outputActivation[0];
+			cpuReluDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT);
+			cpuSgemmStridedBatched(true, false,
+				GlobalVars::HIDDEN, GlobalVars::ONE, GlobalVars::OUTPUT,
+				&GlobalVars::ONE,
+				outputWeights, GlobalVars::OUTPUT, GlobalVars::ZERO,
+				outputGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
+				&GlobalVars::ZERO,
+				hiddenActivationGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
+				GlobalVars::ONE);
+			cpuReluDerivative(hiddenMatrix, hiddenActivationGradient, hiddenGradient, GlobalVars::HIDDEN);
+
+			cpuSgemmStridedBatched(false, true,
+				GlobalVars::OUTPUT, GlobalVars::HIDDEN, GlobalVars::ONE,
+				&GlobalVars::ONE,
+				outputGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
+				hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZERO,
+				&GlobalVars::ONE,
+				outputWeightsGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
+				GlobalVars::ONE);
+			cpuSgemmStridedBatched(false, true,
+				GlobalVars::HIDDEN, GlobalVars::INPUT, GlobalVars::ONE,
+				&GlobalVars::ONE,
+				hiddenGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
+				inputMatrix, GlobalVars::INPUT, GlobalVars::ZERO,
+				&GlobalVars::ONE,
+				hiddenWeightsGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
+				GlobalVars::ONE);
+			cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::ONE, hiddenGradient, GlobalVars::ONE, hiddenBiasGradient, GlobalVars::ONE);
+			cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::ONE, outputGradient, GlobalVars::ONE, outputBiasGradient, GlobalVars::ONE);
+
+			if (debug)
+			{
+				cout << "inputMatrix:\n";
+				PrintMatrix(inputMatrix, GlobalVars::ONE, GlobalVars::INPUT);
+				cout << "hiddenMatrix:\n";
+				PrintMatrix(hiddenMatrix, GlobalVars::ONE, GlobalVars::HIDDEN);
+				cout << "hiddenActivation:\n";
+				PrintMatrix(hiddenActivation, GlobalVars::ONE, GlobalVars::HIDDEN);
+				cout << "outputMatrix:\n";
+				PrintMatrix(outputMatrix, GlobalVars::ONE, GlobalVars::OUTPUT);
+				cout << "outputActivation:\n";
+				PrintMatrix(outputActivation, GlobalVars::ONE, GlobalVars::OUTPUT);
+				cout << "outputActivationGradient:\n";
+				PrintMatrix(outputActivationGradient, GlobalVars::ONE, GlobalVars::OUTPUT);
+				cout << "outputGradient:\n";
+				PrintMatrix(outputGradient, GlobalVars::ONE, GlobalVars::OUTPUT);
+				cout << "outputWeightsGradient:\n";
+				PrintMatrix(outputWeightsGradient, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
+				cout << "hiddenActivationGradient:\n";
+				PrintMatrix(hiddenActivationGradient, GlobalVars::ONE, GlobalVars::HIDDEN);
+				cout << "hiddenGradient:\n";
+				PrintMatrix(hiddenGradient, GlobalVars::ONE, GlobalVars::HIDDEN);
+				cout << "hiddenWeightsGradient:\n";
+				PrintMatrix(hiddenWeightsGradient, GlobalVars::INPUT, GlobalVars::HIDDEN);
+			}
+
+			if (iteration < 10)
+			{
+				cout << "Expected: " << expected << '\n';
+				cout << "Output: " << outputActivation[0] << '\n';
+				cout << '\n';
+			}
 		}
 
-		if (iteration < 10)
-		{
-			cout << "Expected: " << expected << '\n';
-			cout << "Output: " << outputActivation[0] << '\n';
-			cout << '\n';
-		}
-
-		for (uint32_t counter = GlobalVars::HIDDEN * GlobalVars::INPUT; counter--;)
-			hiddenWeights[counter] += hiddenWeightsGradient[counter] * GlobalVars::LEARNING_RATE;
-		for (uint32_t counter = GlobalVars::OUTPUT * GlobalVars::HIDDEN; counter--;)
-			outputWeights[counter] += outputWeightsGradient[counter] * GlobalVars::LEARNING_RATE;
-		for (uint32_t counter = GlobalVars::HIDDEN; counter--;)
-			hiddenBias[counter] += hiddenGradient[counter] * GlobalVars::LEARNING_RATE;
-		for (uint32_t counter = GlobalVars::OUTPUT; counter--;)
-			outputBias[counter] += outputGradient[counter] * GlobalVars::LEARNING_RATE;
+		cpuSaxpy(GlobalVars::HIDDEN * GlobalVars::INPUT, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONE, hiddenWeights, GlobalVars::ONE);
+		cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenBiasGradient, GlobalVars::ONE, hiddenBias, GlobalVars::ONE);
+		cpuSaxpy(GlobalVars::OUTPUT * GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, outputWeightsGradient, GlobalVars::ONE, outputWeights, GlobalVars::ONE);
+		cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputBiasGradient, GlobalVars::ONE, outputBias, GlobalVars::ONE);
 	}
 	
-	cout << "Hidden Weights:\n";
+	/*cout << "Hidden Weights:\n";
 	PrintMatrix(hiddenWeights, GlobalVars::INPUT, GlobalVars::HIDDEN);
 	
 	cout << "Hidden Bias:\n";
@@ -296,7 +312,7 @@ int main()
 	PrintMatrix(outputWeights, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
 	
 	cout << "Output Bias:\n";
-	PrintMatrix(outputBias, GlobalVars::ONE, GlobalVars::OUTPUT);
+	PrintMatrix(outputBias, GlobalVars::ONE, GlobalVars::OUTPUT);*/
 
 	return 0;
 }
