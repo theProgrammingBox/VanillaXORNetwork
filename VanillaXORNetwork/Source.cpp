@@ -279,6 +279,7 @@ int main()
 	dataFile << GlobalVars::ACTIVATIONS << '\n';
 	dataFile << GlobalVars::RUNS << '\n';
 	dataFile << GlobalVars::ITERATIONS << '\n';
+	dataFile <<'\n';
 		
 	uint32_t activation = GlobalVars::ACTIVATIONS;
 	while (activation--)
