@@ -117,6 +117,9 @@ namespace GlobalVars
 	constexpr uint32_t OUTPUT = 1;
 	constexpr uint32_t ITERATIONS = 10000;
 	constexpr uint32_t BATCHES = 16;
+	constexpr uint32_t ACTIVATIONS = 3;
+	constexpr uint32_t RUNS = 10;
+	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
 	constexpr float LEARNING_RATE = 0.1f;
@@ -173,6 +176,18 @@ void cpuReluDerivative(float* input, float* gradient, float* output, uint32_t si
 		output[counter] = (input[counter] > 0) * gradient[counter];
 }
 
+void cpuLeakyRelu(float* input, float* output, uint32_t size)
+{
+	for (uint32_t counter = size; counter--;)
+		output[counter] = ((input[counter] > 0) * 0.9f + 0.1f) * input[counter];
+}
+
+void cpuLeakyReluDerivative(float* input, float* gradient, float* output, uint32_t size)
+{
+	for (uint32_t counter = size; counter--;)
+		output[counter] = ((input[counter] > 0) * 0.9f + 0.1f) * gradient[counter];
+}
+
 void cpuClu(float* input, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
@@ -183,6 +198,42 @@ void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t siz
 {
 	for (size_t counter = size; counter--;)
 		output[counter] = gradient[counter] * ((input[counter] < 1 && input[counter] > -1) * 0.9f + 0.1f);
+}
+
+void cpuActivation(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
+{
+	switch (activation)
+	{
+	case 0:
+		cpuRelu(input, output, size);
+		break;
+	case 1:
+		cpuLeakyRelu(input, output, size);
+		break;
+	case 2:
+		cpuClu(input, output, size);
+		break;
+	default:
+		break;
+	}
+}
+
+void cpuActivationDerivative(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
+{
+	switch (activation)
+	{
+	case 0:
+		cpuReluDerivative(input, gradient, output, size);
+		break;
+	case 1:
+		cpuLeakyReluDerivative(input, gradient, output, size);
+		break;
+	case 2:
+		cpuCluDerivative(input, gradient, output, size);
+		break;
+	default:
+		break;
+	}
 }
 
 void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
@@ -199,6 +250,10 @@ void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
 int main()
 {
 	const bool debug = false;
+
+	float scores[GlobalVars::AVERAGES];
+	float avgScore;
+	uint32_t idx;
 	
 	float inputMatrix[GlobalVars::INPUT];
 	float hiddenMatrix[GlobalVars::HIDDEN];
@@ -218,6 +273,10 @@ int main()
 	float outputWeightsGradient[GlobalVars::HIDDEN * GlobalVars::OUTPUT];
 	float hiddenBiasGradient[GlobalVars::HIDDEN];
 	float outputBiasGradient[GlobalVars::OUTPUT];
+
+	memset(scores, 0, GlobalVars::AVERAGES * sizeof(float));
+	avgScore = 0.0f;
+	idx = 0;
 	
 	cpuGenerateUniform(hiddenWeights, GlobalVars::INPUT * GlobalVars::HIDDEN, -1.0f, 1.0f);
 	cpuGenerateUniform(outputWeights, GlobalVars::HIDDEN * GlobalVars::OUTPUT, -1.0f, 1.0f);
@@ -249,8 +308,7 @@ int main()
 				&GlobalVars::ZEROF,
 				hiddenMatrix, GlobalVars::HIDDEN, GlobalVars::ZEROF,
 				GlobalVars::ONEF);
-			//cpuRelu(hiddenMatrix, hiddenActivation, GlobalVars::HIDDEN);
-			cpuClu(hiddenMatrix, hiddenActivation, GlobalVars::HIDDEN);
+			cpuActivation(hiddenMatrix, hiddenGradient, hiddenActivation, GlobalVars::HIDDEN, 2);
 			cpuSgemmStridedBatched(false, false,
 				GlobalVars::OUTPUT, GlobalVars::ONEF, GlobalVars::HIDDEN,
 				&GlobalVars::ONEF,
@@ -259,12 +317,10 @@ int main()
 				&GlobalVars::ZEROF,
 				outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZEROF,
 				GlobalVars::ONEF);
-			//cpuRelu(outputMatrix, outputActivation, GlobalVars::OUTPUT);
-			cpuClu(outputMatrix, outputActivation, GlobalVars::OUTPUT);
+			cpuActivation(outputMatrix, outputGradient, outputActivation, GlobalVars::OUTPUT, 2);
 
 			outputActivationGradient[0] = float(expected) - outputActivation[0];
-			//cpuReluDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT);
-			cpuCluDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT);
+			cpuActivationDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT, 2);
 			cpuSgemmStridedBatched(true, false,
 				GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::OUTPUT,
 				&GlobalVars::ONEF,
@@ -273,8 +329,7 @@ int main()
 				&GlobalVars::ZEROF,
 				hiddenActivationGradient, GlobalVars::HIDDEN, GlobalVars::ZEROF,
 				GlobalVars::ONEF);
-			//cpuReluDerivative(hiddenMatrix, hiddenActivationGradient, hiddenGradient, GlobalVars::HIDDEN);
-			cpuCluDerivative(hiddenMatrix, hiddenActivationGradient, hiddenGradient, GlobalVars::HIDDEN);
+			cpuActivationDerivative(hiddenMatrix, hiddenActivationGradient, hiddenGradient, GlobalVars::HIDDEN, 2);
 			
 			cpuSgemmStridedBatched(false, true,
 				GlobalVars::OUTPUT, GlobalVars::HIDDEN, GlobalVars::ONEF,
@@ -301,6 +356,13 @@ int main()
 				cout << "Output: " << outputActivation[0] << '\n';
 				cout << '\n';
 			}
+
+			avgScore -= scores[idx];
+			avgScore += 1 - abs(float(expected) - outputActivation[0]);
+			scores[idx++] = 1 - abs(float(expected) - outputActivation[0]);
+			idx -= (idx == GlobalVars::AVERAGES) * GlobalVars::AVERAGES;
+			if (iteration % 100 == 0)
+				cout << float(iteration) / GlobalVars::ITERATIONS << "% --- Score: " << avgScore / GlobalVars::AVERAGES << '\n';
 		}
 		
 		if (debug && (iteration == 0))
