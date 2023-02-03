@@ -17,6 +17,16 @@ using std::min;
 using std::max;
 using std::ofstream;
 
+/*
+IMPORTANT LESSONS
+1. For simple networks/tasks, a batch size may be detrimental to performance.
+2. More complexity is needed to allow a path to the solution since batches may average out a path.
+3. a network of 2x2x1 can be solved with no batches most of the times.
+4. a network of 2x8x1 is needed if using batches to get the same performance as the simple network with no batches.
+5. relu may or may not be causing certain paths to be unlearnable.
+6. the initial weights and biases are important especially with relu.
+*/
+
 class Random
 {
 public:
@@ -96,13 +106,13 @@ namespace GlobalVars
 {
 	Random random(Random::MakeSeed(0));
 	constexpr uint32_t INPUT = 2;
-	constexpr uint32_t HIDDEN = 2;
+	constexpr uint32_t HIDDEN = 8;
 	constexpr uint32_t OUTPUT = 1;
 	constexpr uint32_t ITERATIONS = 100000;
 	constexpr uint32_t BATCHES = 8;
-	constexpr float ONE = 1.0f;
-	constexpr float ZERO = 0.0f;
-	constexpr float LEARNING_RATE = 0.1f;
+	constexpr float ONEF = 1.0f;
+	constexpr float ZEROF = 0.0f;
+	constexpr float LEARNING_RATE = 0.01f;
 	constexpr float GRADIENT_SCALAR = LEARNING_RATE / BATCHES;
 }
 
@@ -140,20 +150,20 @@ void cpuSgemmStridedBatched(
 
 void cpuSaxpy(int N, const float* alpha, const float* X, int incX, float* Y, int incY)
 {
-	for (int i = 0; i < N; i++)
+	for (int i = N; i--;)
 		Y[i * incY] += *alpha * X[i * incX];
 }
 
 void cpuRelu(float* input, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = ((input[counter] > 0)) * input[counter];
+		output[counter] = (input[counter] > 0) * input[counter];
 }
 
 void cpuReluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = ((input[counter] > 0)) * gradient[counter];
+		output[counter] = (input[counter] > 0) * gradient[counter];
 }
 
 void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
@@ -213,106 +223,110 @@ int main()
 				expected ^= (bool)inputMatrix[counter];
 			}
 			cpuSgemmStridedBatched(false, false,
-				GlobalVars::HIDDEN, GlobalVars::ONE, GlobalVars::INPUT,
-				&GlobalVars::ONE,
-				hiddenWeights, GlobalVars::HIDDEN, GlobalVars::ZERO,
-				inputMatrix, GlobalVars::INPUT, GlobalVars::ZERO,
-				&GlobalVars::ZERO,
-				hiddenMatrix, GlobalVars::HIDDEN, GlobalVars::ZERO,
-				GlobalVars::ONE);
+				GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::INPUT,
+				&GlobalVars::ONEF,
+				hiddenWeights, GlobalVars::HIDDEN, GlobalVars::ZEROF,
+				inputMatrix, GlobalVars::INPUT, GlobalVars::ZEROF,
+				&GlobalVars::ZEROF,
+				hiddenMatrix, GlobalVars::HIDDEN, GlobalVars::ZEROF,
+				GlobalVars::ONEF);
 			cpuRelu(hiddenMatrix, hiddenActivation, GlobalVars::HIDDEN);
 			cpuSgemmStridedBatched(false, false,
-				GlobalVars::OUTPUT, GlobalVars::ONE, GlobalVars::HIDDEN,
-				&GlobalVars::ONE,
-				outputWeights, GlobalVars::OUTPUT, GlobalVars::ZERO,
-				hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZERO,
-				&GlobalVars::ZERO,
-				outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZERO,
-				GlobalVars::ONE);
+				GlobalVars::OUTPUT, GlobalVars::ONEF, GlobalVars::HIDDEN,
+				&GlobalVars::ONEF,
+				outputWeights, GlobalVars::OUTPUT, GlobalVars::ZEROF,
+				hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZEROF,
+				&GlobalVars::ZEROF,
+				outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZEROF,
+				GlobalVars::ONEF);
 			cpuRelu(outputMatrix, outputActivation, GlobalVars::OUTPUT);
 
-			outputActivationGradient[0] = expected - outputActivation[0];
+			outputActivationGradient[0] = float(expected) - outputActivation[0];
 			cpuReluDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT);
 			cpuSgemmStridedBatched(true, false,
-				GlobalVars::HIDDEN, GlobalVars::ONE, GlobalVars::OUTPUT,
-				&GlobalVars::ONE,
-				outputWeights, GlobalVars::OUTPUT, GlobalVars::ZERO,
-				outputGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
-				&GlobalVars::ZERO,
-				hiddenActivationGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
-				GlobalVars::ONE);
+				GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::OUTPUT,
+				&GlobalVars::ONEF,
+				outputWeights, GlobalVars::OUTPUT, GlobalVars::ZEROF,
+				outputGradient, GlobalVars::OUTPUT, GlobalVars::ZEROF,
+				&GlobalVars::ZEROF,
+				hiddenActivationGradient, GlobalVars::HIDDEN, GlobalVars::ZEROF,
+				GlobalVars::ONEF);
 			cpuReluDerivative(hiddenMatrix, hiddenActivationGradient, hiddenGradient, GlobalVars::HIDDEN);
 
 			cpuSgemmStridedBatched(false, true,
-				GlobalVars::OUTPUT, GlobalVars::HIDDEN, GlobalVars::ONE,
-				&GlobalVars::ONE,
-				outputGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
-				hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZERO,
-				&GlobalVars::ONE,
-				outputWeightsGradient, GlobalVars::OUTPUT, GlobalVars::ZERO,
-				GlobalVars::ONE);
+				GlobalVars::OUTPUT, GlobalVars::HIDDEN, GlobalVars::ONEF,
+				&GlobalVars::ONEF,
+				outputGradient, GlobalVars::OUTPUT, GlobalVars::ZEROF,
+				hiddenActivation, GlobalVars::HIDDEN, GlobalVars::ZEROF,
+				&GlobalVars::ONEF,
+				outputWeightsGradient, GlobalVars::OUTPUT, GlobalVars::ZEROF,
+				GlobalVars::ONEF);
 			cpuSgemmStridedBatched(false, true,
-				GlobalVars::HIDDEN, GlobalVars::INPUT, GlobalVars::ONE,
-				&GlobalVars::ONE,
-				hiddenGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
-				inputMatrix, GlobalVars::INPUT, GlobalVars::ZERO,
-				&GlobalVars::ONE,
-				hiddenWeightsGradient, GlobalVars::HIDDEN, GlobalVars::ZERO,
-				GlobalVars::ONE);
-			cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::ONE, hiddenGradient, GlobalVars::ONE, hiddenBiasGradient, GlobalVars::ONE);
-			cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::ONE, outputGradient, GlobalVars::ONE, outputBiasGradient, GlobalVars::ONE);
+				GlobalVars::HIDDEN, GlobalVars::INPUT, GlobalVars::ONEF,
+				&GlobalVars::ONEF,
+				hiddenGradient, GlobalVars::HIDDEN, GlobalVars::ZEROF,
+				inputMatrix, GlobalVars::INPUT, GlobalVars::ZEROF,
+				&GlobalVars::ONEF,
+				hiddenWeightsGradient, GlobalVars::HIDDEN, GlobalVars::ZEROF,
+				GlobalVars::ONEF);
+			cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::ONEF, hiddenGradient, GlobalVars::ONEF, hiddenBiasGradient, GlobalVars::ONEF);
+			cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::ONEF, outputGradient, GlobalVars::ONEF, outputBiasGradient, GlobalVars::ONEF);
 
-			if (debug)
-			{
-				cout << "inputMatrix:\n";
-				PrintMatrix(inputMatrix, GlobalVars::ONE, GlobalVars::INPUT);
-				cout << "hiddenMatrix:\n";
-				PrintMatrix(hiddenMatrix, GlobalVars::ONE, GlobalVars::HIDDEN);
-				cout << "hiddenActivation:\n";
-				PrintMatrix(hiddenActivation, GlobalVars::ONE, GlobalVars::HIDDEN);
-				cout << "outputMatrix:\n";
-				PrintMatrix(outputMatrix, GlobalVars::ONE, GlobalVars::OUTPUT);
-				cout << "outputActivation:\n";
-				PrintMatrix(outputActivation, GlobalVars::ONE, GlobalVars::OUTPUT);
-				cout << "outputActivationGradient:\n";
-				PrintMatrix(outputActivationGradient, GlobalVars::ONE, GlobalVars::OUTPUT);
-				cout << "outputGradient:\n";
-				PrintMatrix(outputGradient, GlobalVars::ONE, GlobalVars::OUTPUT);
-				cout << "outputWeightsGradient:\n";
-				PrintMatrix(outputWeightsGradient, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
-				cout << "hiddenActivationGradient:\n";
-				PrintMatrix(hiddenActivationGradient, GlobalVars::ONE, GlobalVars::HIDDEN);
-				cout << "hiddenGradient:\n";
-				PrintMatrix(hiddenGradient, GlobalVars::ONE, GlobalVars::HIDDEN);
-				cout << "hiddenWeightsGradient:\n";
-				PrintMatrix(hiddenWeightsGradient, GlobalVars::INPUT, GlobalVars::HIDDEN);
-			}
-
-			if (iteration < 10)
+			if (iteration == 0)
 			{
 				cout << "Expected: " << expected << '\n';
 				cout << "Output: " << outputActivation[0] << '\n';
 				cout << '\n';
 			}
 		}
+		
+		if (debug && (iteration == 0))
+		{
+			cout << "inputMatrix:\n";
+			PrintMatrix(inputMatrix, GlobalVars::ONEF, GlobalVars::INPUT);
+			cout << "hiddenMatrix:\n";
+			PrintMatrix(hiddenMatrix, GlobalVars::ONEF, GlobalVars::HIDDEN);
+			cout << "hiddenActivation:\n";
+			PrintMatrix(hiddenActivation, GlobalVars::ONEF, GlobalVars::HIDDEN);
+			cout << "outputMatrix:\n";
+			PrintMatrix(outputMatrix, GlobalVars::ONEF, GlobalVars::OUTPUT);
+			cout << "outputActivation:\n";
+			PrintMatrix(outputActivation, GlobalVars::ONEF, GlobalVars::OUTPUT);
+			cout << "outputActivationGradient:\n";
+			PrintMatrix(outputActivationGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
+			cout << "outputGradient:\n";
+			PrintMatrix(outputGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
+			cout << "hiddenActivationGradient:\n";
+			PrintMatrix(hiddenActivationGradient, GlobalVars::ONEF, GlobalVars::HIDDEN);
+			cout << "hiddenGradient:\n";
+			PrintMatrix(hiddenGradient, GlobalVars::ONEF, GlobalVars::HIDDEN);
+			cout << "outputWeightsGradient:\n";
+			PrintMatrix(outputWeightsGradient, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
+			cout << "hiddenWeightsGradient:\n";
+			PrintMatrix(hiddenWeightsGradient, GlobalVars::INPUT, GlobalVars::HIDDEN);
+			cout << "outputBiasGradient:\n";
+			PrintMatrix(outputBiasGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
+			cout << "hiddenBiasGradient:\n";
+			PrintMatrix(hiddenBiasGradient, GlobalVars::ONEF, GlobalVars::HIDDEN);
+		}
 
-		cpuSaxpy(GlobalVars::HIDDEN * GlobalVars::INPUT, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONE, hiddenWeights, GlobalVars::ONE);
-		cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenBiasGradient, GlobalVars::ONE, hiddenBias, GlobalVars::ONE);
-		cpuSaxpy(GlobalVars::OUTPUT * GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, outputWeightsGradient, GlobalVars::ONE, outputWeights, GlobalVars::ONE);
-		cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputBiasGradient, GlobalVars::ONE, outputBias, GlobalVars::ONE);
+		cpuSaxpy(GlobalVars::INPUT * GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONEF, hiddenWeights, GlobalVars::ONEF);
+		cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenBiasGradient, GlobalVars::ONEF, hiddenBias, GlobalVars::ONEF);
+		cpuSaxpy(GlobalVars::HIDDEN * GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputWeightsGradient, GlobalVars::ONEF, outputWeights, GlobalVars::ONEF);
+		cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputBiasGradient, GlobalVars::ONEF, outputBias, GlobalVars::ONEF);
 	}
 	
 	/*cout << "Hidden Weights:\n";
 	PrintMatrix(hiddenWeights, GlobalVars::INPUT, GlobalVars::HIDDEN);
 	
 	cout << "Hidden Bias:\n";
-	PrintMatrix(hiddenBias, GlobalVars::ONE, GlobalVars::HIDDEN);
+	PrintMatrix(hiddenBias, GlobalVars::ONEF, GlobalVars::HIDDEN);
 
 	cout << "Output Weights:\n";
 	PrintMatrix(outputWeights, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
 	
 	cout << "Output Bias:\n";
-	PrintMatrix(outputBias, GlobalVars::ONE, GlobalVars::OUTPUT);*/
+	PrintMatrix(outputBias, GlobalVars::ONEF, GlobalVars::OUTPUT);*/
 
 	return 0;
 }
