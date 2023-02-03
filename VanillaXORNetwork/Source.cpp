@@ -11,7 +11,7 @@ using std::chrono::nanoseconds;
 using std::chrono::microseconds;
 using std::cout;
 using std::exp;
-using std::abs;
+using std::fabs;
 using std::sqrt;
 using std::min;
 using std::max;
@@ -118,7 +118,7 @@ namespace GlobalVars
 	Random random(Random::MakeSeed(0));
 	constexpr uint32_t INPUT = 2;
 	constexpr uint32_t HIDDEN = 2;
-	constexpr uint32_t OUTPUT = 1;
+	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
 	constexpr uint32_t BATCHES = 100;
 	constexpr uint32_t ACTIVATIONS = 3;
@@ -128,7 +128,6 @@ namespace GlobalVars
 	constexpr float ZEROF = 0.0f;
 	constexpr float LEARNING_RATE = 0.1f;
 	float GRADIENT_SCALAR = LEARNING_RATE / sqrt(BATCHES);
-	float GRADIENT_SCALAR2 = LEARNING_RATE / (BATCHES);
 }
 
 void cpuGenerateUniform(float* matrix, uint32_t size, float min = 0, float max = 1)
@@ -202,7 +201,7 @@ void cpuClu(float* input, float* output, uint32_t size)
 void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = gradient[counter] * (((input[counter] < 1.0f) && (input[counter] > -1.0f)) * 0.9f + 0.1f);
+		output[counter] = gradient[counter] * ((fabs(input[counter]) < 1.0f) * 0.9f + 0.1f);
 }
 
 void cpuActivation(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
@@ -241,6 +240,27 @@ void cpuActivationDerivative(float* input, float* gradient, float* output, uint3
 	}
 }
 
+void cpuSoftmax(float* input, float* output, uint32_t size)
+{
+	float sum = 0;
+	for (uint32_t counter = size; counter--;)
+	{
+		output[counter] = exp(input[counter]);
+		sum += output[counter];
+	}
+	sum = 1.0f / sum;
+	for (uint32_t counter = size; counter--;)
+		output[counter] *= sum;
+}
+
+void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t action, uint32_t size)
+{
+	int gradient = (endState << 1) - 1;
+	float sampledProbability = input[action];
+	for (uint32_t counter = size; counter--;)
+		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);
+}
+
 void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
 {
 	for (uint32_t row = 0; row < rows; row++)
@@ -264,7 +284,8 @@ int main()
 	float hiddenMatrix[GlobalVars::HIDDEN];
 	float hiddenActivation[GlobalVars::HIDDEN];
 	float outputMatrix[GlobalVars::OUTPUT];
-	float outputActivation[GlobalVars::OUTPUT];
+	float softmaxMatrix[GlobalVars::OUTPUT];
+	
 	float hiddenWeights[GlobalVars::INPUT * GlobalVars::HIDDEN];
 	float outputWeights[GlobalVars::HIDDEN * GlobalVars::OUTPUT];
 	float hiddenBias[GlobalVars::HIDDEN];
@@ -273,7 +294,7 @@ int main()
 	float hiddenGradient[GlobalVars::HIDDEN];
 	float hiddenActivationGradient[GlobalVars::HIDDEN];
 	float outputGradient[GlobalVars::OUTPUT];
-	float outputActivationGradient[GlobalVars::OUTPUT];
+	
 	float hiddenWeightsGradient[GlobalVars::INPUT * GlobalVars::HIDDEN];
 	float outputWeightsGradient[GlobalVars::HIDDEN * GlobalVars::OUTPUT];
 	float hiddenBiasGradient[GlobalVars::HIDDEN];
@@ -336,10 +357,20 @@ int main()
 						&GlobalVars::ZEROF,
 						outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZEROF,
 						GlobalVars::ONEF);
-					cpuActivation(outputMatrix, outputGradient, outputActivation, GlobalVars::OUTPUT, activation);
+					cpuSoftmax(outputMatrix, softmaxMatrix, GlobalVars::OUTPUT);
 
-					outputActivationGradient[0] = float(expected) - outputActivation[0];
-					cpuActivationDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT, activation);
+					float number = GlobalVars::random.Rfloat(0.0f, 1.0f);
+					uint32_t action = 0;
+					while (true)
+					{
+						number -= softmaxMatrix[action];
+						if (number < 0) break;
+						action++;
+						action -= (action == GlobalVars::OUTPUT) * GlobalVars::OUTPUT;
+					}
+					bool endState = (bool)action == expected;
+					
+					cpuSoftmaxDerivative(softmaxMatrix, outputGradient, endState, action, GlobalVars::OUTPUT);
 					cpuSgemmStridedBatched(true, false,
 						GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::OUTPUT,
 						&GlobalVars::ONEF,
@@ -376,7 +407,7 @@ int main()
 						cout << '\n';
 					}*/
 
-					averageScore += 1 - abs(float(expected) - outputActivation[0]);
+					averageScore += endState;
 				}
 				
 				avgScore -= scores[idx];
