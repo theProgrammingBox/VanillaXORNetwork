@@ -32,6 +32,10 @@ IMPORTANT LESSONS
 (clu was able to solve the 2x2x1 network with a batchsize of 16 while relu couldn't)
 (unofficial ranking: CLU, LeakyRELU, RELU)
 9. The pros of CLU: no diminishing or exploding gradient, allows both negative and poitive numbers, and very fast
+10. appareantly CLU can handle larger learning rates very well
+(I just applied learning rate insead of learning rate / batch size)
+11. CLU handles high and low batch sizes a lot better then leaky and relu
+12. Applying learning rate / sqrt(batches) works alot better for CLU. leaky and reul have about the same performance.
 */
 
 class Random
@@ -115,15 +119,16 @@ namespace GlobalVars
 	constexpr uint32_t INPUT = 2;
 	constexpr uint32_t HIDDEN = 2;
 	constexpr uint32_t OUTPUT = 1;
-	constexpr uint32_t ITERATIONS = 1000;
-	constexpr uint32_t BATCHES = 8;
+	constexpr uint32_t ITERATIONS = 1900;
+	constexpr uint32_t BATCHES = 100;
 	constexpr uint32_t ACTIVATIONS = 3;
 	constexpr uint32_t RUNS = 20;
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
 	constexpr float LEARNING_RATE = 0.1f;
-	constexpr float GRADIENT_SCALAR = LEARNING_RATE / BATCHES;
+	float GRADIENT_SCALAR = LEARNING_RATE / sqrt(BATCHES);
+	float GRADIENT_SCALAR2 = LEARNING_RATE / (BATCHES);
 }
 
 void cpuGenerateUniform(float* matrix, uint32_t size, float min = 0, float max = 1)
@@ -417,10 +422,10 @@ int main()
 					cout << "outputBias:\n";
 					PrintMatrix(outputBias, GlobalVars::ONEF, GlobalVars::OUTPUT);
 				}*/
-
-				cpuSaxpy(GlobalVars::INPUT * GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONEF, hiddenWeights, GlobalVars::ONEF);
+				
+				cpuSaxpy(GlobalVars::INPUT* GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONEF, hiddenWeights, GlobalVars::ONEF);
 				cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenBiasGradient, GlobalVars::ONEF, hiddenBias, GlobalVars::ONEF);
-				cpuSaxpy(GlobalVars::HIDDEN * GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputWeightsGradient, GlobalVars::ONEF, outputWeights, GlobalVars::ONEF);
+				cpuSaxpy(GlobalVars::HIDDEN* GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputWeightsGradient, GlobalVars::ONEF, outputWeights, GlobalVars::ONEF);
 				cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputBiasGradient, GlobalVars::ONEF, outputBias, GlobalVars::ONEF);
 			}
 			dataFile << '\n';
