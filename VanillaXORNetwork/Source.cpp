@@ -29,6 +29,8 @@ IMPORTANT LESSONS
 (I attempted cluGradient so the gradient is 0 if either (x > 1 and gradient > 0) or (x < -1 and gradient < 0) because you cant go above 1 and below -1 due to the activation function, but it leads to weird results)
 (may be because they only affect certain nodes and the rest are stun locked? everyone is fighting for the not stunned nodes. with the gradient * 0.1 if outside, at least nothing is stunned)
 8. clu suprizingly performs better then relu when using 2x2x1 with big batch size.
+(clu was able to solve the 2x2x1 network with a batchsize of 16 while relu couldn't)
+(unofficial ranking: CLU, LeakyRELU, RELU)
 */
 
 class Random
@@ -297,48 +299,10 @@ int main()
 				cout << "Expected: " << expected << '\n';
 				cout << "Output: " << outputActivation[0] << '\n';
 				cout << '\n';
-
-				/*if (outputActivation[0] != expected)
-				{
-					cout << "inputMatrix:\n";
-					PrintMatrix(inputMatrix, GlobalVars::ONEF, GlobalVars::INPUT);
-					cout << "hiddenMatrix:\n";
-					PrintMatrix(hiddenMatrix, GlobalVars::ONEF, GlobalVars::HIDDEN);
-					cout << "hiddenActivation:\n";
-					PrintMatrix(hiddenActivation, GlobalVars::ONEF, GlobalVars::HIDDEN);
-					cout << "outputMatrix:\n";
-					PrintMatrix(outputMatrix, GlobalVars::ONEF, GlobalVars::OUTPUT);
-					cout << "outputActivation:\n";
-					PrintMatrix(outputActivation, GlobalVars::ONEF, GlobalVars::OUTPUT);
-					cout << "outputActivationGradient:\n";
-					PrintMatrix(outputActivationGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
-					cout << "outputGradient:\n";
-					PrintMatrix(outputGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
-					cout << "hiddenActivationGradient:\n";
-					PrintMatrix(hiddenActivationGradient, GlobalVars::ONEF, GlobalVars::HIDDEN);
-					cout << "hiddenGradient:\n";
-					PrintMatrix(hiddenGradient, GlobalVars::ONEF, GlobalVars::HIDDEN);
-					cout << "outputWeightsGradient:\n";
-					PrintMatrix(outputWeightsGradient, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
-					cout << "hiddenWeightsGradient:\n";
-					PrintMatrix(hiddenWeightsGradient, GlobalVars::INPUT, GlobalVars::HIDDEN);
-					cout << "outputBiasGradient:\n";
-					PrintMatrix(outputBiasGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
-					cout << "hiddenBiasGradient:\n";
-					PrintMatrix(hiddenBiasGradient, GlobalVars::ONEF, GlobalVars::HIDDEN);
-					cout << "hiddenWeights:\n";
-					PrintMatrix(hiddenWeights, GlobalVars::INPUT, GlobalVars::HIDDEN);
-					cout << "outputWeights:\n";
-					PrintMatrix(outputWeights, GlobalVars::HIDDEN, GlobalVars::OUTPUT);
-					cout << "hiddenBias:\n";
-					PrintMatrix(hiddenBias, GlobalVars::ONEF, GlobalVars::HIDDEN);
-					cout << "outputBias:\n";
-					PrintMatrix(outputBias, GlobalVars::ONEF, GlobalVars::OUTPUT);
-				}*/
 			}
 		}
 		
-		/*if (debug && (iteration == 0))
+		if (debug && (iteration == 0))
 		{
 			cout << "inputMatrix:\n";
 			PrintMatrix(inputMatrix, GlobalVars::ONEF, GlobalVars::INPUT);
@@ -374,7 +338,7 @@ int main()
 			PrintMatrix(hiddenBias, GlobalVars::ONEF, GlobalVars::HIDDEN);
 			cout << "outputBias:\n";
 			PrintMatrix(outputBias, GlobalVars::ONEF, GlobalVars::OUTPUT);
-		}*/
+		}
 
 		cpuSaxpy(GlobalVars::INPUT * GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONEF, hiddenWeights, GlobalVars::ONEF);
 		cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenBiasGradient, GlobalVars::ONEF, hiddenBias, GlobalVars::ONEF);
