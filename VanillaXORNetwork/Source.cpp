@@ -117,17 +117,17 @@ namespace GlobalVars
 {
 	Random random(Random::MakeSeed(0));
 	constexpr uint32_t INPUT = 2;
-	constexpr uint32_t HIDDEN = 2;
+	constexpr uint32_t HIDDEN = 8;
 	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
-	constexpr uint32_t BATCHES = 100;
+	constexpr uint32_t BATCHES = 10;
 	constexpr uint32_t ACTIVATIONS = 3;
 	constexpr uint32_t RUNS = 20;
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
-	constexpr float LEARNING_RATE = 0.1f;
-	float GRADIENT_SCALAR = LEARNING_RATE / sqrt(BATCHES);
+	constexpr float LEARNING_RATE = 1.0f;
+	float GRADIENT_SCALAR = LEARNING_RATE;
 }
 
 void cpuGenerateUniform(float* matrix, uint32_t size, float min = 0, float max = 1)
@@ -195,13 +195,13 @@ void cpuLeakyReluDerivative(float* input, float* gradient, float* output, uint32
 void cpuClu(float* input, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = min(1.0f, max(-1.0f, input[counter]));
+		output[counter] = min(10.0f, max(-0.0f, input[counter]));
 }
 
 void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = gradient[counter] * ((fabs(input[counter]) < 1.0f) * 0.9f + 0.1f);
+		output[counter] = gradient[counter] * ((input[counter] > -0.0f && input[counter] < 10.0f) * 0.9f + 0.1f);
 }
 
 void cpuActivation(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
@@ -255,7 +255,7 @@ void cpuSoftmax(float* input, float* output, uint32_t size)
 
 void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t action, uint32_t size)
 {
-	int gradient = (endState << 1) - 1;
+	int gradient = endState ? 1 : -1;
 	float sampledProbability = input[action];
 	for (uint32_t counter = size; counter--;)
 		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);
