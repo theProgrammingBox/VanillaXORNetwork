@@ -31,6 +31,7 @@ IMPORTANT LESSONS
 8. clu suprizingly performs better then relu when using 2x2x1 with big batch size.
 (clu was able to solve the 2x2x1 network with a batchsize of 16 while relu couldn't)
 (unofficial ranking: CLU, LeakyRELU, RELU)
+9. The pros of CLU: no diminishing or exploding gradient, allows both negative and poitive numbers, and very fast
 */
 
 class Random
@@ -197,7 +198,7 @@ void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
 
 int main()
 {
-	const bool debug = true;
+	const bool debug = false;
 	
 	float inputMatrix[GlobalVars::INPUT];
 	float hiddenMatrix[GlobalVars::HIDDEN];
@@ -218,8 +219,8 @@ int main()
 	float hiddenBiasGradient[GlobalVars::HIDDEN];
 	float outputBiasGradient[GlobalVars::OUTPUT];
 	
-	cpuGenerateUniform(hiddenWeights, GlobalVars::INPUT * GlobalVars::HIDDEN);
-	cpuGenerateUniform(outputWeights, GlobalVars::HIDDEN * GlobalVars::OUTPUT);
+	cpuGenerateUniform(hiddenWeights, GlobalVars::INPUT * GlobalVars::HIDDEN, -1.0f, 1.0f);
+	cpuGenerateUniform(outputWeights, GlobalVars::HIDDEN * GlobalVars::OUTPUT, -1.0f, 1.0f);
 	memset(hiddenBias, 0, GlobalVars::HIDDEN * sizeof(float));
 	memset(outputBias, 0, GlobalVars::OUTPUT * sizeof(float));
 
