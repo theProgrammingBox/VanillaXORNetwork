@@ -116,9 +116,9 @@ namespace GlobalVars
 	constexpr uint32_t HIDDEN = 2;
 	constexpr uint32_t OUTPUT = 1;
 	constexpr uint32_t ITERATIONS = 1000;
-	constexpr uint32_t BATCHES = 4;
+	constexpr uint32_t BATCHES = 8;
 	constexpr uint32_t ACTIVATIONS = 3;
-	constexpr uint32_t RUNS = 16;
+	constexpr uint32_t RUNS = 20;
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
@@ -197,7 +197,7 @@ void cpuClu(float* input, float* output, uint32_t size)
 void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = gradient[counter] * ((input[counter] < 1 && input[counter] > -1) * 0.9f + 0.1f);
+		output[counter] = gradient[counter] * (((input[counter] < 1.0f) && (input[counter] > -1.0f)) * 0.9f + 0.1f);
 }
 
 void cpuActivation(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
