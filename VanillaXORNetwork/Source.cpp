@@ -198,7 +198,7 @@ void cpuLeakyReluDerivative(float* input, float* gradient, float* output, uint32
 void cpuClu(float* input, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = (input[counter] > -1.0f && input[counter] < 1.0f) * input[counter];
+		output[counter] = max(min(input[counter], 1.0f), -1.0f);
 }
 
 void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t size)
@@ -258,10 +258,13 @@ void cpuSoftmax(float* input, float* output, uint32_t size)
 
 void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t action, uint32_t size)
 {
-	float sampledProbability = input[action];
-	int gradient = (endState ? 1.0f : -1.0f);
+	/*float sampledProbability = input[action];
+	float gradient = (endState ? 1.0f : -1.0f);
 	for (uint32_t counter = size; counter--;)
-		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);
+		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);*/
+	float gradient = (endState ? 1.0f : -1.0f);
+	for (uint32_t counter = size; counter--;)
+		output[counter] = gradient * (counter == action ? 0.001f : 0.0f);
 }
 
 void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
