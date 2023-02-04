@@ -117,7 +117,7 @@ namespace GlobalVars
 {
 	Random random(Random::MakeSeed(0));
 	constexpr uint32_t INPUT = 2;
-	constexpr uint32_t HIDDEN = 8;
+	constexpr uint32_t HIDDEN = 2;
 	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
 	constexpr uint32_t BATCHES = 100;
@@ -126,7 +126,7 @@ namespace GlobalVars
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
-	constexpr float LEARNING_RATE = 100.0f;
+	constexpr float LEARNING_RATE = 0.1f;
 	float GRADIENT_SCALAR = LEARNING_RATE / sqrt(BATCHES);
 }
 
@@ -195,13 +195,13 @@ void cpuLeakyReluDerivative(float* input, float* gradient, float* output, uint32
 void cpuClu(float* input, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = min(0.1f, max(-0.1f, input[counter]));
+		output[counter] = min(1.0f, max(-1.0f, input[counter]));
 }
 
 void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = gradient[counter] * ((input[counter] >= -0.1f && input[counter] <= 0.1f) * 0.9f + 0.1f);
+		output[counter] = gradient[counter] * ((input[counter] >= -1.0f && input[counter] <= 1.0f) * 0.9f + 0.1f);
 }
 
 void cpuActivation(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
@@ -209,13 +209,13 @@ void cpuActivation(float* input, float* gradient, float* output, uint32_t size, 
 	switch (activation)
 	{
 	case 0:
-		cpuRelu(input, output, size);
+		cpuClu(input, output, size);
 		break;
 	case 1:
 		cpuLeakyRelu(input, output, size);
 		break;
 	case 2:
-		cpuClu(input, output, size);
+		cpuRelu(input, output, size);
 		break;
 	default:
 		break;
@@ -227,13 +227,13 @@ void cpuActivationDerivative(float* input, float* gradient, float* output, uint3
 	switch (activation)
 	{
 	case 0:
-		cpuReluDerivative(input, gradient, output, size);
+		cpuCluDerivative(input, gradient, output, size);
 		break;
 	case 1:
 		cpuLeakyReluDerivative(input, gradient, output, size);
 		break;
 	case 2:
-		cpuCluDerivative(input, gradient, output, size);
+		cpuReluDerivative(input, gradient, output, size);
 		break;
 	default:
 		break;
@@ -256,7 +256,7 @@ void cpuSoftmax(float* input, float* output, uint32_t size)
 void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t action, uint32_t size)
 {
 	float sampledProbability = input[action];
-	int gradient = endState - sampledProbability;
+	int gradient = (endState ? 1.0f : -1.0f);
 	for (uint32_t counter = size; counter--;)
 		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);
 }
@@ -338,7 +338,7 @@ int main()
 					for (uint32_t counter = GlobalVars::INPUT; counter--;)
 					{
 						inputMatrix[counter] = GlobalVars::random.Ruint32() & 1;
-						expected |= (bool)inputMatrix[counter];
+						expected ^= (bool)inputMatrix[counter];
 					}
 					cpuSgemmStridedBatched(false, false,
 						GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::INPUT,
@@ -403,7 +403,7 @@ int main()
 					/*if (iteration == 0)
 					{
 						cout << "Expected: " << expected << '\n';
-						cout << "Output: " << outputActivation[0] << '\n';
+						cout << "Output: " << action << '\n';
 						cout << '\n';
 					}*/
 
@@ -415,8 +415,9 @@ int main()
 				scores[idx++] = averageScore / GlobalVars::BATCHES;
 				idx -= (idx == GlobalVars::AVERAGES) * GlobalVars::AVERAGES;
 				dataFile << avgScore / GlobalVars::AVERAGES << ' ';
+				//cout << "Average score: " << avgScore / GlobalVars::AVERAGES << '\n';
 
-				/*if (debug && (iteration == 0))
+				if (debug && (iteration == 0))
 				{
 					cout << "inputMatrix:\n";
 					PrintMatrix(inputMatrix, GlobalVars::ONEF, GlobalVars::INPUT);
@@ -426,10 +427,8 @@ int main()
 					PrintMatrix(hiddenActivation, GlobalVars::ONEF, GlobalVars::HIDDEN);
 					cout << "outputMatrix:\n";
 					PrintMatrix(outputMatrix, GlobalVars::ONEF, GlobalVars::OUTPUT);
-					cout << "outputActivation:\n";
-					PrintMatrix(outputActivation, GlobalVars::ONEF, GlobalVars::OUTPUT);
-					cout << "outputActivationGradient:\n";
-					PrintMatrix(outputActivationGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
+					cout << "softmaxMatrix:\n";
+					PrintMatrix(softmaxMatrix, GlobalVars::ONEF, GlobalVars::OUTPUT);
 					cout << "outputGradient:\n";
 					PrintMatrix(outputGradient, GlobalVars::ONEF, GlobalVars::OUTPUT);
 					cout << "hiddenActivationGradient:\n";
@@ -452,11 +451,11 @@ int main()
 					PrintMatrix(hiddenBias, GlobalVars::ONEF, GlobalVars::HIDDEN);
 					cout << "outputBias:\n";
 					PrintMatrix(outputBias, GlobalVars::ONEF, GlobalVars::OUTPUT);
-				}*/
+				}
 				
-				cpuSaxpy(GlobalVars::INPUT* GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONEF, hiddenWeights, GlobalVars::ONEF);
+				cpuSaxpy(GlobalVars::INPUT * GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenWeightsGradient, GlobalVars::ONEF, hiddenWeights, GlobalVars::ONEF);
 				cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::GRADIENT_SCALAR, hiddenBiasGradient, GlobalVars::ONEF, hiddenBias, GlobalVars::ONEF);
-				cpuSaxpy(GlobalVars::HIDDEN* GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputWeightsGradient, GlobalVars::ONEF, outputWeights, GlobalVars::ONEF);
+				cpuSaxpy(GlobalVars::HIDDEN * GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputWeightsGradient, GlobalVars::ONEF, outputWeights, GlobalVars::ONEF);
 				cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::GRADIENT_SCALAR, outputBiasGradient, GlobalVars::ONEF, outputBias, GlobalVars::ONEF);
 			}
 			dataFile << '\n';
