@@ -340,11 +340,11 @@ int main()
 				uint32_t batch = GlobalVars::BATCHES;
 				while (batch--)
 				{
-					bool expected = 1;
+					bool expected = 0;
 					for (uint32_t counter = GlobalVars::INPUT; counter--;)
 					{
 						inputMatrix[counter] = GlobalVars::random.Ruint32() & 1;
-						expected |= (bool)inputMatrix[counter];
+						expected ^= (bool)inputMatrix[counter];
 					}
 					cpuSgemmStridedBatched(false, false,
 						GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::INPUT,
@@ -354,6 +354,7 @@ int main()
 						&GlobalVars::ZEROF,
 						hiddenMatrix, GlobalVars::HIDDEN, GlobalVars::ZEROF,
 						GlobalVars::ONEF);
+					cpuSaxpy(GlobalVars::HIDDEN, &GlobalVars::ONEF, hiddenBias, GlobalVars::ONEF, hiddenMatrix, GlobalVars::ONEF);
 					cpuActivation(hiddenMatrix, hiddenGradient, hiddenActivation, GlobalVars::HIDDEN, activation);
 					cpuSgemmStridedBatched(false, false,
 						GlobalVars::OUTPUT, GlobalVars::ONEF, GlobalVars::HIDDEN,
@@ -363,6 +364,7 @@ int main()
 						&GlobalVars::ZEROF,
 						outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZEROF,
 						GlobalVars::ONEF);
+					cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::ONEF, outputBias, GlobalVars::ONEF, outputMatrix, GlobalVars::ONEF);
 					cpuSoftmax(outputMatrix, softmaxMatrix, GlobalVars::OUTPUT);
 
 					float number = GlobalVars::random.Rfloat(0.0f, 1.0f);
@@ -374,7 +376,7 @@ int main()
 						action++;
 						action -= (action == GlobalVars::OUTPUT) * GlobalVars::OUTPUT;
 					}
-					bool endState = (bool)action == expected;
+					bool endState = bool(action) == expected;
 					
 					cpuSoftmaxDerivative(softmaxMatrix, outputGradient, endState, action, GlobalVars::OUTPUT);
 					cpuSgemmStridedBatched(true, false,
