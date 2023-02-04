@@ -117,7 +117,7 @@ namespace GlobalVars
 {
 	Random random(Random::MakeSeed(0));
 	constexpr uint32_t INPUT = 2;
-	constexpr uint32_t HIDDEN = 2;
+	constexpr uint32_t HIDDEN = 4;
 	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
 	constexpr uint32_t BATCHES = 100;
@@ -171,37 +171,37 @@ void cpuSaxpy(int N, const float* alpha, const float* X, int incX, float* Y, int
 void cpuRelu(float* input, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = (input[counter] > 0) * input[counter];
+		output[counter] = (input[counter] > 0.0f) * input[counter];
 }
 
 void cpuReluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = (input[counter] > 0) * gradient[counter];
+		output[counter] = (input[counter] > 0.0f) * gradient[counter];
 }
 
 void cpuLeakyRelu(float* input, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = ((input[counter] > 0) * 0.9f + 0.1f) * input[counter];
+		output[counter] = ((input[counter] > 0.0f) * 0.9f + 0.1f) * input[counter];
 }
 
 void cpuLeakyReluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (uint32_t counter = size; counter--;)
-		output[counter] = ((input[counter] > 0) * 0.9f + 0.1f) * gradient[counter];
+		output[counter] = ((input[counter] > 0.0f) * 0.9f + 0.1f) * gradient[counter];
 }
 
 void cpuClu(float* input, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = min(1.0f, max(-1.0f, input[counter]));
+		output[counter] = (input[counter] > -1.0f && input[counter] < 1.0f) * input[counter];
 }
 
 void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
-		output[counter] = gradient[counter] * ((input[counter] >= -1.0f && input[counter] <= 1.0f) * 0.9f + 0.1f);
+		output[counter] = ((input[counter] > -1.0f && input[counter] < 1.0f) * 0.9f + 0.1f) * gradient[counter];
 }
 
 void cpuActivation(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
