@@ -258,13 +258,13 @@ void cpuSoftmax(float* input, float* output, uint32_t size)
 
 void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t action, uint32_t size)
 {
-	/*float sampledProbability = input[action];
+	float sampledProbability = input[action];
 	float gradient = (endState ? 1.0f : -1.0f);
 	for (uint32_t counter = size; counter--;)
-		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);*/
-	float gradient = (endState ? 1.0f : -1.0f);
+		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);/**/
+	/*float gradient = (endState ? 1.0f : -1.0f);
 	for (uint32_t counter = size; counter--;)
-		output[counter] = gradient * (counter == action ? 0.001f : 0.0f);
+		output[counter] = gradient * (counter == action ? 0.001f : 0.0f);*/
 }
 
 void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
