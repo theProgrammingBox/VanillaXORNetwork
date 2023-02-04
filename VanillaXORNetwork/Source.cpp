@@ -124,7 +124,7 @@ namespace GlobalVars
 	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
 	constexpr uint32_t BATCHES = 100;
-	constexpr uint32_t ACTIVATIONS = 3;
+	constexpr uint32_t ACTIVATIONS = 4;
 	constexpr uint32_t RUNS = 20;
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
@@ -195,6 +195,18 @@ void cpuLeakyReluDerivative(float* input, float* gradient, float* output, uint32
 		output[counter] = ((input[counter] > 0.0f) * 0.9f + 0.1f) * gradient[counter];
 }
 
+void cpuTahn(float* input, float* output, uint32_t size)
+{
+	for (size_t counter = size; counter--;)
+		output[counter] = tanh(input[counter]);
+}
+
+void cpuTahnDerivative(float* input, float* gradient, float* output, uint32_t size)
+{
+	for (size_t counter = size; counter--;)
+		output[counter] = (1.0f - tanh(input[counter]) * tanh(input[counter])) * gradient[counter];
+}
+
 void cpuClu(float* input, float* output, uint32_t size)
 {
 	for (size_t counter = size; counter--;)
@@ -220,6 +232,9 @@ void cpuActivation(float* input, float* gradient, float* output, uint32_t size, 
 	case 2:
 		cpuRelu(input, output, size);
 		break;
+	case 3:
+		cpuTahn(input, output, size);
+		break;
 	default:
 		break;
 	}
@@ -237,6 +252,9 @@ void cpuActivationDerivative(float* input, float* gradient, float* output, uint3
 		break;
 	case 2:
 		cpuReluDerivative(input, gradient, output, size);
+		break;
+	case 3:
+		cpuTahnDerivative(input, gradient, output, size);
 		break;
 	default:
 		break;
@@ -259,12 +277,9 @@ void cpuSoftmax(float* input, float* output, uint32_t size)
 void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t action, uint32_t size)
 {
 	float sampledProbability = input[action];
-	float gradient = (endState ? 1.0f : -1.0f);
+	float gradient = (endState - sampledProbability);
 	for (uint32_t counter = size; counter--;)
-		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);/**/
-	/*float gradient = (endState ? 1.0f : -1.0f);
-	for (uint32_t counter = size; counter--;)
-		output[counter] = gradient * (counter == action ? 0.001f : 0.0f);*/
+		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);
 }
 
 void PrintMatrix(float* matrix, uint32_t rows, uint32_t cols)
