@@ -18,7 +18,7 @@ using std::max;
 using std::ofstream;
 
 /*
-IMPORTANT LESSONS
+VANILLA IMPORTANT LESSONS
 1. For simple networks/tasks, a batch size may be detrimental to performance.
 2. More complexity is needed to allow a path to the solution since batches may average out a path.
 3. a network of 2x2x1 can be solved with no batches most of the times.
@@ -36,6 +36,9 @@ IMPORTANT LESSONS
 (I just applied learning rate insead of learning rate / batch size)
 11. CLU handles high and low batch sizes a lot better then leaky and relu
 12. Applying learning rate / sqrt(batches) works alot better for CLU. leaky and reul have about the same performance.
+
+ELRL IMPORTANT LESSONS
+1. CLU performs the worst when using ELRL and 2x2x2 model. Leaky is the best and relu is the second best.
 */
 
 class Random
@@ -117,7 +120,7 @@ namespace GlobalVars
 {
 	Random random(Random::MakeSeed(0));
 	constexpr uint32_t INPUT = 2;
-	constexpr uint32_t HIDDEN = 4;
+	constexpr uint32_t HIDDEN = 8;
 	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
 	constexpr uint32_t BATCHES = 100;
@@ -334,11 +337,11 @@ int main()
 				uint32_t batch = GlobalVars::BATCHES;
 				while (batch--)
 				{
-					bool expected = 0;
+					bool expected = 1;
 					for (uint32_t counter = GlobalVars::INPUT; counter--;)
 					{
 						inputMatrix[counter] = GlobalVars::random.Ruint32() & 1;
-						expected ^= (bool)inputMatrix[counter];
+						expected |= (bool)inputMatrix[counter];
 					}
 					cpuSgemmStridedBatched(false, false,
 						GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::INPUT,
