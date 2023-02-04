@@ -19,26 +19,7 @@ using std::ofstream;
 
 /*
 VANILLA IMPORTANT LESSONS
-1. For simple networks/tasks, a batch size may be detrimental to performance.
-2. More complexity is needed to allow a path to the solution since batches may average out a path.
-3. a network of 2x2x1 can be solved with no batches most of the times.
-4. a network of 2x8x1 is needed if using batches to get the same performance as the simple network with no batches.
-5. relu may or may not be causing certain paths to be unlearnable.
-6. the initial weights and biases are important especially with relu.
-7. a functional activation function apears to need nonconditional gradients, like if x > 1, apply gradient * 0.1. You can't say x can only go downwards since the activation limits x to 1.
-(I attempted cluGradient so the gradient is 0 if either (x > 1 and gradient > 0) or (x < -1 and gradient < 0) because you cant go above 1 and below -1 due to the activation function, but it leads to weird results)
-(may be because they only affect certain nodes and the rest are stun locked? everyone is fighting for the not stunned nodes. with the gradient * 0.1 if outside, at least nothing is stunned)
-8. clu suprizingly performs better then relu when using 2x2x1 with big batch size.
-(clu was able to solve the 2x2x1 network with a batchsize of 16 while relu couldn't)
-(unofficial ranking: CLU, LeakyRELU, RELU)
-9. The pros of CLU: no diminishing or exploding gradient, allows both negative and poitive numbers, and very fast
-10. appareantly CLU can handle larger learning rates very well
-(I just applied learning rate insead of learning rate / batch size)
-11. CLU handles high and low batch sizes a lot better then leaky and relu
-12. Applying learning rate / sqrt(batches) works alot better for CLU. leaky and reul have about the same performance.
-
-ELRL IMPORTANT LESSONS
-1. CLU performs the worst when using ELRL and 2x2x2 model. Leaky is the best and relu is the second best.
+1. Leaky relu is the best compared to tahn and relu
 */
 
 class Random
@@ -123,13 +104,13 @@ namespace GlobalVars
 	constexpr uint32_t HIDDEN = 8;
 	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
-	constexpr uint32_t BATCHES = 100;
-	constexpr uint32_t ACTIVATIONS = 4;
-	constexpr uint32_t RUNS = 20;
+	constexpr uint32_t BATCHES = 16;
+	constexpr uint32_t ACTIVATIONS = 1;
+	constexpr uint32_t RUNS = 30;
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
-	constexpr float LEARNING_RATE = 0.1f;
+	constexpr float LEARNING_RATE = 0.2f;
 	float GRADIENT_SCALAR = LEARNING_RATE / sqrt(BATCHES);
 }
 
@@ -171,52 +152,16 @@ void cpuSaxpy(int N, const float* alpha, const float* X, int incX, float* Y, int
 		Y[i * incY] += *alpha * X[i * incX];
 }
 
-void cpuRelu(float* input, float* output, uint32_t size)
-{
-	for (uint32_t counter = size; counter--;)
-		output[counter] = (input[counter] > 0.0f) * input[counter];
-}
-
-void cpuReluDerivative(float* input, float* gradient, float* output, uint32_t size)
-{
-	for (uint32_t counter = size; counter--;)
-		output[counter] = (input[counter] > 0.0f) * gradient[counter];
-}
-
 void cpuLeakyRelu(float* input, float* output, uint32_t size)
 {
-	for (uint32_t counter = size; counter--;)
-		output[counter] = ((input[counter] > 0.0f) * 0.9f + 0.1f) * input[counter];
+	for (size_t counter = size; counter--;)
+		output[counter] = (((*(int32_t*)(input + counter) & 0x80000000) >> 31) * 0.9f + 0.1f) * input[counter];
 }
 
 void cpuLeakyReluDerivative(float* input, float* gradient, float* output, uint32_t size)
 {
-	for (uint32_t counter = size; counter--;)
-		output[counter] = ((input[counter] > 0.0f) * 0.9f + 0.1f) * gradient[counter];
-}
-
-void cpuTahn(float* input, float* output, uint32_t size)
-{
 	for (size_t counter = size; counter--;)
-		output[counter] = tanh(input[counter]);
-}
-
-void cpuTahnDerivative(float* input, float* gradient, float* output, uint32_t size)
-{
-	for (size_t counter = size; counter--;)
-		output[counter] = (1.0f - tanh(input[counter]) * tanh(input[counter])) * gradient[counter];
-}
-
-void cpuClu(float* input, float* output, uint32_t size)
-{
-	for (size_t counter = size; counter--;)
-		output[counter] = max(min(input[counter], 1.0f), -1.0f);
-}
-
-void cpuCluDerivative(float* input, float* gradient, float* output, uint32_t size)
-{
-	for (size_t counter = size; counter--;)
-		output[counter] = ((input[counter] > -1.0f && input[counter] < 1.0f) * 0.9f + 0.1f) * gradient[counter];
+		output[counter] = (((*(int32_t*)(input + counter) & 0x80000000) >> 31) * 0.9f + 0.1f) * gradient[counter];
 }
 
 void cpuActivation(float* input, float* gradient, float* output, uint32_t size, uint32_t activation)
@@ -224,16 +169,7 @@ void cpuActivation(float* input, float* gradient, float* output, uint32_t size, 
 	switch (activation)
 	{
 	case 0:
-		cpuClu(input, output, size);
-		break;
-	case 1:
 		cpuLeakyRelu(input, output, size);
-		break;
-	case 2:
-		cpuRelu(input, output, size);
-		break;
-	case 3:
-		cpuTahn(input, output, size);
 		break;
 	default:
 		break;
@@ -245,16 +181,7 @@ void cpuActivationDerivative(float* input, float* gradient, float* output, uint3
 	switch (activation)
 	{
 	case 0:
-		cpuCluDerivative(input, gradient, output, size);
-		break;
-	case 1:
 		cpuLeakyReluDerivative(input, gradient, output, size);
-		break;
-	case 2:
-		cpuReluDerivative(input, gradient, output, size);
-		break;
-	case 3:
-		cpuTahnDerivative(input, gradient, output, size);
 		break;
 	default:
 		break;
@@ -305,6 +232,7 @@ int main()
 	float hiddenMatrix[GlobalVars::HIDDEN];
 	float hiddenActivation[GlobalVars::HIDDEN];
 	float outputMatrix[GlobalVars::OUTPUT];
+	float outputActivation[GlobalVars::OUTPUT];
 	float softmaxMatrix[GlobalVars::OUTPUT];
 	
 	float hiddenWeights[GlobalVars::INPUT * GlobalVars::HIDDEN];
@@ -315,6 +243,7 @@ int main()
 	float hiddenGradient[GlobalVars::HIDDEN];
 	float hiddenActivationGradient[GlobalVars::HIDDEN];
 	float outputGradient[GlobalVars::OUTPUT];
+	float outputActivationGradient[GlobalVars::OUTPUT];
 	
 	float hiddenWeightsGradient[GlobalVars::INPUT * GlobalVars::HIDDEN];
 	float outputWeightsGradient[GlobalVars::HIDDEN * GlobalVars::OUTPUT];
@@ -380,7 +309,8 @@ int main()
 						outputMatrix, GlobalVars::OUTPUT, GlobalVars::ZEROF,
 						GlobalVars::ONEF);
 					cpuSaxpy(GlobalVars::OUTPUT, &GlobalVars::ONEF, outputBias, GlobalVars::ONEF, outputMatrix, GlobalVars::ONEF);
-					cpuSoftmax(outputMatrix, softmaxMatrix, GlobalVars::OUTPUT);
+					cpuActivation(outputMatrix, outputGradient, outputActivation, GlobalVars::OUTPUT, activation);
+					cpuSoftmax(outputActivation, softmaxMatrix, GlobalVars::OUTPUT);
 
 					float number = GlobalVars::random.Rfloat(0.0f, 1.0f);
 					uint32_t action = 0;
@@ -393,7 +323,8 @@ int main()
 					}
 					bool endState = bool(action) == expected;
 					
-					cpuSoftmaxDerivative(softmaxMatrix, outputGradient, endState, action, GlobalVars::OUTPUT);
+					cpuSoftmaxDerivative(softmaxMatrix, outputActivationGradient, endState, action, GlobalVars::OUTPUT);
+					cpuActivationDerivative(outputMatrix, outputActivationGradient, outputGradient, GlobalVars::OUTPUT, activation);
 					cpuSgemmStridedBatched(true, false,
 						GlobalVars::HIDDEN, GlobalVars::ONEF, GlobalVars::OUTPUT,
 						&GlobalVars::ONEF,
