@@ -104,7 +104,7 @@ namespace GLOBAL
 	constexpr uint32_t ITERATIONS = 1900;
 	constexpr uint32_t BATCHES = 16;
 	constexpr uint32_t ACTIVATIONS = 2;
-	constexpr uint32_t RUNS = 30;
+	constexpr uint32_t RUNS = 100;
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
