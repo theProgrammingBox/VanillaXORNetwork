@@ -25,22 +25,22 @@ class Random
 public:
 	Random(uint32_t seed = 0)	// seed the random number generator
 	{
-		state[0] = Hash((uint8_t*)&seed, sizeof(seed), seed);
-		state[1] = Hash((uint8_t*)&seed, sizeof(seed), state[0]);
+		state[0] = Hash((uint8_t*)&seed, 4, seed);
+		state[1] = Hash((uint8_t*)&seed, 4, state[0]);
 	}
 
 	static uint32_t MakeSeed(uint32_t seed = 0)	// make seed from time and seed
 	{
 		uint32_t result = seed;
-		result = Hash((uint8_t*)&result, sizeof(result), nanosecond());
-		result = Hash((uint8_t*)&result, sizeof(result), microsecond());
+		result = Hash((uint8_t*)&result, 4, nanosecond());
+		result = Hash((uint8_t*)&result, 4, microsecond());
 		return result;
 	}
 
 	void Seed(uint32_t seed = 0)	// seed the random number generator
 	{
-		state[0] = Hash((uint8_t*)&seed, sizeof(seed), seed);
-		state[1] = Hash((uint8_t*)&seed, sizeof(seed), state[0]);
+		state[0] = Hash((uint8_t*)&seed, 4, seed);
+		state[1] = Hash((uint8_t*)&seed, 4, state[0]);
 	}
 
 	uint32_t Ruint32()	// XORSHIFT128+
@@ -60,8 +60,8 @@ public:
 		uint32_t h = seed;
 		uint32_t k;
 		for (size_t i = len >> 2; i; i--) {
-			memcpy(&k, key, sizeof(uint32_t));
-			key += sizeof(uint32_t);
+			memcpy(&k, key, 4);
+			key += 4;
 			h ^= murmur_32_scramble(k);
 			h = (h << 13) | (h >> 19);
 			h = h * 5 + 0xe6546b64;
@@ -295,8 +295,8 @@ int main()
 			
 			DiagonalMatrixInit(hiddenWeights, GLOBAL::INPUT, GLOBAL::HIDDEN);
 			DiagonalMatrixInit(outputWeights, GLOBAL::HIDDEN, GLOBAL::OUTPUT);
-			memset(hiddenBias, 0, GLOBAL::HIDDEN * sizeof(float));
-			memset(outputBias, 0, GLOBAL::OUTPUT * sizeof(float));
+			memset(hiddenBias, 0, GLOBAL::HIDDEN << 2);
+			memset(outputBias, 0, GLOBAL::OUTPUT << 2);
 
 			uint32_t iteration = GLOBAL::ITERATIONS;
 			while (iteration--)
