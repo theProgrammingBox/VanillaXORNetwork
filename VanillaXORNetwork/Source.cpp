@@ -289,7 +289,7 @@ int main()
 		uint32_t run = GLOBAL::RUNS;
 		while (run--)
 		{
-			memset(scores, 0, GLOBAL::AVERAGES * sizeof(float));
+			memset(scores, 0, GLOBAL::AVERAGES << 2);
 			avgScore = 0.0f;
 			idx = 0;
 			
@@ -301,10 +301,10 @@ int main()
 			uint32_t iteration = GLOBAL::ITERATIONS;
 			while (iteration--)
 			{
-				memset(hiddenWeightsGradient, 0, GLOBAL::INPUT * GLOBAL::HIDDEN * sizeof(float));
-				memset(outputWeightsGradient, 0, GLOBAL::HIDDEN * GLOBAL::OUTPUT * sizeof(float));
-				memset(hiddenBiasGradient, 0, GLOBAL::HIDDEN * sizeof(float));
-				memset(outputBiasGradient, 0, GLOBAL::OUTPUT * sizeof(float));
+				memset(hiddenWeightsGradient, 0, GLOBAL::INPUT * GLOBAL::HIDDEN << 2);
+				memset(outputWeightsGradient, 0, GLOBAL::HIDDEN * GLOBAL::OUTPUT << 2);
+				memset(hiddenBiasGradient, 0, GLOBAL::HIDDEN << 2);
+				memset(outputBiasGradient, 0, GLOBAL::OUTPUT << 2);
 
 				float averageScore = 0;
 				uint32_t batch = GLOBAL::BATCHES;
