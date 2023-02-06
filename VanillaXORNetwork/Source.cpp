@@ -222,14 +222,11 @@ void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t a
 }
 
 void PrintMatrix(float* arr, uint32_t rows, uint32_t cols, const char* label = "") {
-	if (label[0] != '\0')
-		printf("%s:\n", label);
+	if (*label != '\0') printf("%s:\n", label);
 	for (uint32_t i = 0; i < rows; i++)
 	{
 		for (uint32_t j = 0; j < cols; j++)
-		{
 			printf("%8.3f ", arr[i * cols + j]);
-		}
 		printf("\n");
 	}
 	printf("\n");
