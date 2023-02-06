@@ -108,7 +108,7 @@ namespace GLOBAL
 	constexpr uint32_t AVERAGES = 100;
 	constexpr float ONEF = 1.0f;
 	constexpr float ZEROF = 0.0f;
-	constexpr float LEARNING_RATE = 0.2f;
+	constexpr float LEARNING_RATE = 1.0f;
 	float GRADIENT_SCALAR = LEARNING_RATE / sqrt(BATCHES);
 }
 
@@ -221,8 +221,8 @@ void cpuSoftmaxDerivative(float* input, float* output, bool endState, uint32_t a
 		output[counter] = gradient * input[counter] * ((counter == action) - sampledProbability);
 }
 
-void PrintMatrix(float* arr, uint32_t rows, uint32_t cols, const char* label = "") {
-	if (*label != '\0') printf("%s:\n", label);
+void PrintMatrix(float* arr, uint32_t rows, uint32_t cols, const char* label) {
+	printf("%s:\n", label);
 	for (uint32_t i = 0; i < rows; i++)
 	{
 		for (uint32_t j = 0; j < cols; j++)
@@ -410,11 +410,23 @@ int main()
 					PrintMatrix(hiddenBias, GLOBAL::ONEF, GLOBAL::HIDDEN, "hiddenBias");
 					PrintMatrix(outputBias, GLOBAL::ONEF, GLOBAL::OUTPUT, "outputBias");
 				}
+
+				float magnitude = 0;
+				for (int i = GLOBAL::INPUT * GLOBAL::HIDDEN; i--;)
+					magnitude += hiddenWeightsGradient[i] * hiddenWeightsGradient[i];
+				for (int i = GLOBAL::HIDDEN; i--;)
+					magnitude += hiddenBiasGradient[i] * hiddenBiasGradient[i];
+				for (int i = GLOBAL::HIDDEN * GLOBAL::OUTPUT; i--;)
+					magnitude += outputWeightsGradient[i] * outputWeightsGradient[i];
+				for (int i = GLOBAL::OUTPUT; i--;)
+					magnitude += outputBiasGradient[i] * outputBiasGradient[i];
+				magnitude = sqrt(magnitude);
+				magnitude = magnitude > 1.0f ? GLOBAL::GRADIENT_SCALAR / magnitude : GLOBAL::GRADIENT_SCALAR;
 				
-				cpuSaxpy(GLOBAL::INPUT * GLOBAL::HIDDEN, &GLOBAL::GRADIENT_SCALAR, hiddenWeightsGradient, GLOBAL::ONEF, hiddenWeights, GLOBAL::ONEF);
-				cpuSaxpy(GLOBAL::HIDDEN, &GLOBAL::GRADIENT_SCALAR, hiddenBiasGradient, GLOBAL::ONEF, hiddenBias, GLOBAL::ONEF);
-				cpuSaxpy(GLOBAL::HIDDEN * GLOBAL::OUTPUT, &GLOBAL::GRADIENT_SCALAR, outputWeightsGradient, GLOBAL::ONEF, outputWeights, GLOBAL::ONEF);
-				cpuSaxpy(GLOBAL::OUTPUT, &GLOBAL::GRADIENT_SCALAR, outputBiasGradient, GLOBAL::ONEF, outputBias, GLOBAL::ONEF);
+				cpuSaxpy(GLOBAL::INPUT * GLOBAL::HIDDEN, &magnitude, hiddenWeightsGradient, GLOBAL::ONEF, hiddenWeights, GLOBAL::ONEF);
+				cpuSaxpy(GLOBAL::HIDDEN, &magnitude, hiddenBiasGradient, GLOBAL::ONEF, hiddenBias, GLOBAL::ONEF);
+				cpuSaxpy(GLOBAL::HIDDEN * GLOBAL::OUTPUT, &magnitude, outputWeightsGradient, GLOBAL::ONEF, outputWeights, GLOBAL::ONEF);
+				cpuSaxpy(GLOBAL::OUTPUT, &magnitude, outputBiasGradient, GLOBAL::ONEF, outputBias, GLOBAL::ONEF);
 			}
 		}
 	}
