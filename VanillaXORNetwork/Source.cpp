@@ -19,6 +19,8 @@ using std::ios;
 /*
 VANILLA IMPORTANT LESSONS
 1. Leaky relu is the best compared to tahn and relu
+2. Having a large batch sizes allows for more clearly defined patterns when graphing the scores of multiple runs
+3. Normalizing then clamping the gradients allows for larger / smaller learning rates while preventing gradeint explosion / vanishing
 */
 
 class Random
@@ -103,7 +105,7 @@ namespace GLOBAL
 	constexpr uint32_t HIDDEN = 2;
 	constexpr uint32_t OUTPUT = 2;
 	constexpr uint32_t ITERATIONS = 1900;
-	constexpr uint32_t BATCHES = 16;
+	constexpr uint32_t BATCHES = 32;
 	constexpr uint32_t ACTIVATIONS = 2;
 	constexpr uint32_t RUNS = 100;
 	constexpr uint32_t AVERAGES = 100;
