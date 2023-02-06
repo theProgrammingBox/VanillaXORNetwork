@@ -382,9 +382,10 @@ int main()
 					averageScore += endState;
 				}
 				
+				averageScore /= GLOBAL::BATCHES;
 				avgScore -= scores[idx];
-				avgScore += averageScore / GLOBAL::BATCHES;
-				scores[idx] = averageScore / GLOBAL::BATCHES;
+				avgScore += averageScore;
+				scores[idx] = averageScore;
 				idx -= (++idx == GLOBAL::AVERAGES) * GLOBAL::AVERAGES;
 				averageScore = avgScore / GLOBAL::AVERAGES;
 				dataFile.write((char*)&averageScore, 4);
