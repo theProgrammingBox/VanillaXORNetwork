@@ -12,6 +12,7 @@ using std::chrono::microseconds;
 using std::exp;
 using std::sqrt;
 using std::max;
+using std::min;
 using std::ofstream;
 using std::ios;
 
@@ -234,6 +235,7 @@ void PrintMatrix(float* arr, uint32_t rows, uint32_t cols, const char* label) {
 
 void DiagonalMatrixInit(float* arr, uint32_t rows, uint32_t cols) {
 	cpuGenerateUniform(arr, rows * cols, -0.1f, 0.1f);
+	//memset(arr, 0, rows * cols << 2);
 	uint32_t maxSteps = max(rows, cols);
 	float stepx = (float)cols / maxSteps;
 	float stepy = (float)rows / maxSteps;
@@ -241,7 +243,7 @@ void DiagonalMatrixInit(float* arr, uint32_t rows, uint32_t cols) {
 	float y = 0.0f;
 	for (uint32_t step = maxSteps; step--;)
 	{
-		arr[uint32_t(y) * cols + uint32_t(x)]+= (GLOBAL::random.Ruint32() & 1 << 1) - 1.0f;
+		arr[uint32_t(y) * cols + uint32_t(x)] += (GLOBAL::random.Ruint32() & 1 << 1) - 1.0f;
 		x += stepx;
 		y += stepy;
 	}
@@ -421,7 +423,7 @@ int main()
 				for (int i = GLOBAL::OUTPUT; i--;)
 					magnitude += outputBiasGradient[i] * outputBiasGradient[i];
 				magnitude = sqrt(magnitude);
-				magnitude = magnitude > 1.0f ? GLOBAL::GRADIENT_SCALAR / magnitude : GLOBAL::GRADIENT_SCALAR;
+				magnitude = GLOBAL::GRADIENT_SCALAR * min(1.0f, max(0.01f, magnitude)) / magnitude;
 				
 				cpuSaxpy(GLOBAL::INPUT * GLOBAL::HIDDEN, &magnitude, hiddenWeightsGradient, GLOBAL::ONEF, hiddenWeights, GLOBAL::ONEF);
 				cpuSaxpy(GLOBAL::HIDDEN, &magnitude, hiddenBiasGradient, GLOBAL::ONEF, hiddenBias, GLOBAL::ONEF);
